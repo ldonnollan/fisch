@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FISCH: Island Edition</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background: #0f172a; color: #f8fafc; overflow: hidden; user-select: none; }
+    
+    /* Home Screen Overlay */
+    #home-screen {
+      position: fixed; inset: 0; background: linear-gradient(135deg, #0284c7 0%, #0f172a 100%);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100;
+    }
+    .title-logo { font-size: 64px; font-weight: 900; letter-spacing: 4px; text-shadow: 0 6px 20px rgba(0,0,0,0.5); color: #38bdf8; }
+    .subtitle { font-size: 18px; color: #bae6fd; margin-bottom: 25px; }
+    .home-card {
+      background: rgba(15, 23, 42, 0.85); border: 2px solid #38bdf8; border-radius: 16px;
+      padding: 25px; width: 90%; max-width: 750px; box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+    }
+    .input-row { display: flex; gap: 15px; margin-bottom: 20px; align-items: center; }
+    input[type="text"] {
+      flex: 1; padding: 12px 16px; border-radius: 8px; border: 2px solid #334155;
+      background: #1e293b; color: white; font-size: 16px; outline: none;
+    }
+    input[type="text"]:focus { border-color: #38bdf8; }
+    .avatar-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+      gap: 10px; max-height: 280px; overflow-y: auto; padding-right: 5px; margin-bottom: 20px;
+    }
+    .avatar-card {
+      background: #1e293b; border: 2px solid #334155; border-radius: 10px; padding: 10px;
+      text-align: center; cursor: pointer; transition: 0.15s;
+    }
+    .avatar-card:hover { border-color: #7dd3fc; transform: translateY(-2px); }
+    .avatar-card.selected { border-color: #38bdf8; background: #0c4a6e; box-shadow: 0 0 12px rgba(56, 189, 248, 0.4); }
+    .avatar-preview { width: 40px; height: 50px; margin: 0 auto 8px; position: relative; }
+    .avatar-name { font-size: 12px; font-weight: bold; }
+    .free-tag { font-size: 10px; color: #4ade80; font-weight: bold; }
+    .play-btn {
+      width: 100%; padding: 15px; background: #22c55e; border: none; border-radius: 10px;
+      color: #052e16; font-size: 22px; font-weight: 900; cursor: pointer; transition: 0.15s;
+    }
+    .play-btn:hover { background: #4ade80; transform: scale(1.01); }
+
+    /* Game HUD */
+    #hud { position: fixed; inset: 0; pointer-events: none; display: none; }
+    .top-bar {
+      position: absolute; top: 15px; left: 15px; right: 15px;
+      display: flex; justify-content: space-between; align-items: flex-start;
+    }
+    .stats-box {
+      background: rgba(15, 23, 42, 0.85); border: 2px solid #334155; border-radius: 12px;
+      padding: 12px 18px; pointer-events: auto;
+    }
+    .money-text { font-size: 24px; font-weight: 900; color: #4ade80; }
+    .rod-text { font-size: 14px; color: #38bdf8; margin-top: 4px; }
+    .hud-buttons { display: flex; gap: 10px; pointer-events: auto; }
+    .hud-btn {
+      background: #1e293b; border: 2px solid #38bdf8; color: white; padding: 10px 16px;
+      border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 14px;
+    }
+    .hud-btn:hover { background: #0284c7; }
+
+    /* Prompt & Minigame */
+    #interact-prompt {
+      position: absolute; bottom: 110px; left: 50%; transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.9); border: 2px solid #facc15; color: #facc15;
+      padding: 10px 24px; border-radius: 20px; font-weight: bold; font-size: 16px; display: none;
+    }
+    #minigame-label {
+      position: absolute; bottom: 205px; left: 50%; transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.9); padding: 4px 14px; border-radius: 10px;
+      font-size: 13px; font-weight: bold; border: 1px solid #475569; display: none;
+    }
+    #fishing-bar-container {
+      position: absolute; bottom: 162px; left: 50%; transform: translateX(-50%);
+      width: 380px; height: 34px; background: #0f172a; border: 3px solid #f8fafc;
+      border-radius: 17px; overflow: hidden; display: none; box-shadow: 0 10px 25px rgba(0,0,0,0.7);
+    }
+    /* Player-controlled green catch bar */
+    #green-bar {
+      position: absolute; top: 2px; bottom: 2px;
+      background: rgba(34, 197, 94, 0.78);
+      border: 2px solid #86efac;
+      border-radius: 10px;
+      box-shadow: 0 0 12px rgba(34, 197, 94, 0.6);
+    }
+    /* Erratic Red Diamond (Fish) */
+    #red-diamond {
+      position: absolute; top: 50%;
+      width: 16px; height: 16px;
+      background: #ef4444;
+      border: 2px solid #ffffff;
+      transform: translate(-50%, -50%) rotate(45deg);
+      box-shadow: 0 0 10px #ef4444, 0 0 20px #dc2626;
+      z-index: 5;
+    }
+    #fishing-progress-wrap {
+      position: absolute; bottom: 146px; left: 50%; transform: translateX(-50%);
+      width: 380px; height: 10px; background: #1e293b; border-radius: 5px; overflow: hidden; display: none;
+    }
+    #fishing-progress { width: 35%; height: 100%; background: #38bdf8; }
+
+    /* Modals */
+    .modal {
+      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      background: #0f172a; border: 2px solid #38bdf8; border-radius: 16px;
+      width: 90%; max-width: 650px; max-height: 80vh; display: none; flex-direction: column;
+      z-index: 50; pointer-events: auto; box-shadow: 0 25px 50px rgba(0,0,0,0.85);
+    }
+    .modal-header {
+      padding: 16px 20px; border-bottom: 1px solid #1e293b; display: flex;
+      justify-content: space-between; align-items: center;
+    }
+    .modal-title { font-size: 20px; font-weight: bold; color: #38bdf8; }
+    .close-btn { background: #ef4444; border: none; color: white; width: 30px; height: 30px; border-radius: 8px; cursor: pointer; font-weight: bold; }
+    .modal-body { padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+    .list-item {
+      display: flex; justify-content: space-between; align-items: center;
+      background: #1e293b; padding: 12px 16px; border-radius: 10px; border: 1px solid #334155;
+    }
+    .item-btn {
+      padding: 8px 14px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer;
+    }
+    .btn-buy { background: #22c55e; color: #052e16; }
+    .btn-equip { background: #38bdf8; color: #082f49; }
+    .btn-equipped { background: #475569; color: #cbd5e1; cursor: default; }
+    .btn-sell { background: #facc15; color: #422006; }
+
+    /* Toast Notification */
+    #toast {
+      position: fixed; top: 90px; left: 50%; transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.95); border: 2px solid #38bdf8; padding: 10px 22px;
+      border-radius: 12px; font-weight: bold; font-size: 16px; display: none; z-index: 80;
+    }
+    .controls-hint {
+      position: absolute; bottom: 15px; left: 15px; background: rgba(15, 23, 42, 0.75);
+      padding: 8px 14px; border-radius: 8px; font-size: 13px; color: #cbd5e1;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HOME SCREEN & FREE AVATAR SHOP -->
+  <div id="home-screen">
+    <div class="title-logo">FISCH</div>
+    <div class="subtitle">Expanded Island • 20 Rods • Live Multiplayer</div>
+    <div class="home-card">
+      <div class="input-row">
+        <label style="font-weight:bold;">Username:</label>
+        <input type="text" id="username-input" value="Angler_01" maxlength="16">
+      </div>
+      <div style="font-weight:bold; margin-bottom:10px; color:#bae6fd;">Select Free Roblox Avatar:</div>
+      <div class="avatar-grid" id="avatar-grid"></div>
+      <button class="play-btn" onclick="startGame()">PLAY GAME</button>
+    </div>
+  </div>
+
+  <!-- GAME CANVAS -->
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div class="top-bar">
+      <div class="stats-box">
+        <div class="money-text" id="money-display">0 C$</div>
+        <div class="rod-text" id="rod-display">Equipped: Flimsy Rod</div>
+        <div style="font-size:12px; color:#94a3b8; margin-top:2px;" id="online-count">Players on Island: 1</div>
+      </div>
+      <div class="hud-buttons">
+        <button class="hud-btn" onclick="openModal('inventory-modal')">🎒 Backpack (<span id="inv-count">0</span>)</button>
+        <button class="hud-btn" onclick="openHome()">👤 Change Avatar</button>
+      </div>
+    </div>
+
+    <div id="interact-prompt">Press [E] to Interact</div>
+
+    <!-- Fishing Minigame UI -->
+    <div id="minigame-label">Hold [SPACE] or [CLICK] to slide the Green Bar onto the Red Diamond!</div>
+    <div id="fishing-bar-container">
+      <div id="green-bar"></div>
+      <div id="red-diamond"></div>
+    </div>
+    <div id="fishing-progress-wrap">
+      <div id="fishing-progress"></div>
+    </div>
+
+    <div class="controls-hint">
+      <b>WASD / Arrows:</b> Move &nbsp;|&nbsp; <b>Click Water:</b> Cast &nbsp;|&nbsp; <b>Hold Click / Space:</b> Slide Green Bar &nbsp;|&nbsp; <b>E:</b> NPCs
+    </div>
+  </div>
+
+  <div id="toast">Caught a Fish!</div>
+
+  <!-- INVENTORY MODAL -->
+  <div class="modal" id="inventory-modal">
+    <div class="modal-header">
+      <div class="modal-title">🎒 Your Fish Backpack</div>
+      <button class="close-btn" onclick="closeModals()">X</button>
+    </div>
+    <div class="modal-body" id="inventory-list"></div>
+  </div>
+
+  <!-- ROD SHOP MODAL -->
+  <div class="modal" id="rod-shop-modal">
+    <div class="modal-header">
+      <div class="modal-title">🎣 Pierre's Rod Shop (20 Rods)</div>
+      <button class="close-btn" onclick="closeModals()">X</button>
+    </div>
+    <div class="modal-body" id="rod-shop-list"></div>
+  </div>
+
+  <!-- FISH MERCHANT MODAL -->
+  <div class="modal" id="merchant-modal">
+    <div class="modal-header">
+      <div class="modal-title">💰 Marc's Fish Market</div>
+      <button class="close-btn" onclick="closeModals()">X</button>
+    </div>
+    <div class="modal-body">
+      <button class="item-btn btn-sell" style="width:100%; padding:14px; font-size:16px;" onclick="sellAllFish()">
+        SELL ALL FISH IN BACKPACK
+      </button>
+      <div id="merchant-list" style="display:flex; flex-direction:column; gap:8px; margin-top:10px;"></div>
+    </div>
+  </div>
+
+<script>
+/* ==========================================
+   1. ROBLOX AVATARS (ALL FREE)
+   ========================================== */
+const AVATARS = [
+  { id: 'noob', name: 'Classic Noob', head: '#facc15', torso: '#3b82f6', legs: '#22c55e', hat: 'none' },
+  { id: 'bacon', name: 'Bacon Hair', head: '#fde047', torso: '#1e293b', legs: '#334155', hat: 'bacon' },
+  { id: 'guest', name: 'Classic Guest', head: '#f8fafc', torso: '#0f172a', legs: '#1e293b', hat: 'cap' },
+  { id: 'builderman', name: 'Builderman', head: '#facc15', torso: '#ea580c', legs: '#1d4ed8', hat: 'hardhat' },
+  { id: 'shedletsky', name: 'Shedletsky', head: '#fde047', torso: '#f8fafc', legs: '#3b82f6', hat: 'hair_brown' },
+  { id: 'korblox', name: 'Korblox Deathspeaker', head: '#38bdf8', torso: '#1e3a8a', legs: '#0f172a', hat: 'horns' },
+  { id: 'headless', name: 'Headless Horseman', head: 'transparent', torso: '#581c87', legs: '#1e1b4b', hat: 'none' },
+  { id: 'dominus', name: 'Dominus Empyreus', head: '#f8fafc', torso: '#f8fafc', legs: '#cbd5e1', hat: 'dominus' },
+  { id: 'valkyrie', name: 'Emerald Valkyrie', head: '#fde047', torso: '#065f46', legs: '#022c22', hat: 'valk' },
+  { id: 'redcliff', name: 'Redcliff Knight', head: '#94a3b8', torso: '#dc2626', legs: '#7f1d1d', hat: 'helmet' },
+  { id: 'ninja', name: 'Shadow Ninja', head: '#09090b', torso: '#18181b', legs: '#09090b', hat: 'headband' },
+  { id: 'pirate', name: 'Captain Jack', head: '#fcd34d', torso: '#991b1b', legs: '#451a03', hat: 'pirate' },
+  { id: 'astronaut', name: 'Space Explorer', head: '#e2e8f0', torso: '#f8fafc', legs: '#cbd5e1', hat: 'visor' },
+  { id: 'zombie', name: 'Drooling Zombie', head: '#4ade80', torso: '#78350f', legs: '#3f6212', hat: 'none' },
+  { id: 'rainbow', name: 'Neon Rainbow', head: '#f43f5e', torso: '#8b5cf6', legs: '#06b6d4', hat: 'crown' },
+  { id: 'golden', name: '24k Gold VIP', head: '#fbbf24', torso: '#f59e0b', legs: '#d97706', hat: 'crown' }
+];
+
+let selectedAvatar = AVATARS[0];
+
+function renderAvatarGrid() {
+  const grid = document.getElementById('avatar-grid');
+  grid.innerHTML = '';
+  AVATARS.forEach(av => {
+    const card = document.createElement('div');
+    card.className = 'avatar-card' + (selectedAvatar.id === av.id ? ' selected' : '');
+    card.onclick = () => { selectedAvatar = av; renderAvatarGrid(); };
+    card.innerHTML = `
+      <div class="avatar-preview">
+        <div style="width:18px;height:16px;background:${av.head};margin:0 auto;border-radius:3px;border:1px solid #000;"></div>
+        <div style="width:28px;height:18px;background:${av.torso};margin:1px auto;border-radius:2px;"></div>
+        <div style="width:24px;height:14px;background:${av.legs};margin:0 auto;"></div>
+      </div>
+      <div class="avatar-name">${av.name}</div>
+      <div class="free-tag">FREE</div>
+    `;
+    grid.appendChild(card);
+  });
+}
+renderAvatarGrid();
+
+/* ==========================================
+   2. 20 FISHING RODS (INSPIRED BY FISCH)
+   ========================================== */
+const RODS = [
+  { id: 0,  name: "Flimsy Rod",         price: 0,       luck: 0,   control: 0.22, color: "#a16207" },
+  { id: 1,  name: "Training Rod",       price: 150,     luck: 10,  control: 0.25, color: "#eab308" },
+  { id: 2,  name: "Plastic Rod",        price: 450,     luck: 20,  control: 0.27, color: "#38bdf8" },
+  { id: 3,  name: "Carbon Rod",         price: 1000,    luck: 35,  control: 0.29, color: "#334155" },
+  { id: 4,  name: "Fast Rod",           price: 2200,    luck: 45,  control: 0.31, color: "#f97316" },
+  { id: 5,  name: "Lucky Rod",          price: 3800,    luck: 75,  control: 0.30, color: "#22c55e" },
+  { id: 6,  name: "Long Rod",           price: 5500,    luck: 65,  control: 0.34, color: "#a855f7" },
+  { id: 7,  name: "Steady Rod",         price: 7500,    luck: 70,  control: 0.40, color: "#64748b" },
+  { id: 8,  name: "Fortune Rod",        price: 11000,   luck: 110, control: 0.35, color: "#facc15" },
+  { id: 9,  name: "Rapid Rod",          price: 15000,   luck: 95,  control: 0.37, color: "#ef4444" },
+  { id: 10, name: "Magnet Rod",         price: 20000,   luck: 120, control: 0.39, color: "#dc2626" },
+  { id: 11, name: "Nocturnal Rod",      price: 28000,   luck: 145, control: 0.41, color: "#312e81" },
+  { id: 12, name: "Midas Rod",          price: 40000,   luck: 165, control: 0.43, color: "#fbbf24" },
+  { id: 13, name: "Mythical Rod",       price: 65000,   luck: 200, control: 0.45, color: "#ec4899" },
+  { id: 14, name: "Kings Rod",          price: 90000,   luck: 220, control: 0.50, color: "#eab308" },
+  { id: 15, name: "Destiny Rod",        price: 130000,  luck: 260, control: 0.47, color: "#f8fafc" },
+  { id: 16, name: "Aurora Rod",         price: 180000,  luck: 300, control: 0.49, color: "#2dd4bf" },
+  { id: 17, name: "Trident Rod",        price: 250000,  luck: 350, control: 0.51, color: "#0284c7" },
+  { id: 18, name: "Rod of the Depths",  price: 450000,  luck: 420, control: 0.55, color: "#7e22ce" },
+  { id: 19, name: "Heaven's Rod",       price: 1000000, luck: 550, control: 0.60, color: "#fef08a" }
+];
+
+/* ==========================================
+   3. FISH SPECIES TABLE WITH RARITY DIFFICULTY
+   ========================================== */
+const FISH_TYPES = [
+  { name: "Sardine",           rarity: "Common",    color: "#94a3b8", basePrice: 18,   minKg: 0.2, maxKg: 1.2,  speed: 0.0045, erratic: 0.015 },
+  { name: "Mackerel",          rarity: "Common",    color: "#94a3b8", basePrice: 28,   minKg: 0.5, maxKg: 2.5,  speed: 0.0055, erratic: 0.018 },
+  { name: "Clownfish",         rarity: "Uncommon",  color: "#4ade80", basePrice: 55,   minKg: 0.3, maxKg: 1.5,  speed: 0.0080, erratic: 0.028 },
+  { name: "Red Snapper",       rarity: "Uncommon",  color: "#4ade80", basePrice: 85,   minKg: 1.5, maxKg: 6.0,  speed: 0.0095, erratic: 0.032 },
+  { name: "Pufferfish",        rarity: "Rare",      color: "#38bdf8", basePrice: 160,  minKg: 1.0, maxKg: 4.5,  speed: 0.0130, erratic: 0.048 },
+  { name: "Swordfish",         rarity: "Rare",      color: "#38bdf8", basePrice: 290,  minKg: 15,  maxKg: 65,   speed: 0.0155, erratic: 0.055 },
+  { name: "Golden Dorado",     rarity: "Legendary", color: "#facc15", basePrice: 650,  minKg: 5,   maxKg: 22,   speed: 0.0210, erratic: 0.080 },
+  { name: "Great White Shark", rarity: "Legendary", color: "#facc15", basePrice: 1200, minKg: 120, maxKg: 450,  speed: 0.0245, erratic: 0.095 },
+  { name: "Colossal Squid",    rarity: "Mythical",  color: "#f43f5e", basePrice: 2800, minKg: 200, maxKg: 800,  speed: 0.0310, erratic: 0.130 },
+  { name: "Phantom Megalodon", rarity: "Mythical",  color: "#f43f5e", basePrice: 6500, minKg: 900, maxKg: 2500, speed: 0.0380, erratic: 0.165 }
+];
+
+/* ==========================================
+   4. GAME STATE & WORLD MAP
+   ========================================== */
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+let width = canvas.width = window.innerWidth;
+let height = canvas.height = window.innerHeight;
+window.addEventListener('resize', () => {
+  width = canvas.width = window.innerWidth;
+  height = canvas.height = window.innerHeight;
+});
+
+const WORLD = { width: 2400, height: 1800 };
+const ISLAND = { x: 450, y: 350, w: 1500, h: 1100 };
+
+const NPCS = [
+  { id: 'rod_shop', name: "Pierre (Rod Shop)", x: 920, y: 680, color: "#38bdf8", shirt: "#0284c7" },
+  { id: 'merchant', name: "Marc (Sell Fish)",  x: 1380, y: 680, color: "#facc15", shirt: "#ca8a04" }
+];
+
+const DOCKS = [
+  { x: 1120, y: 1400, w: 160, h: 240 },
+  { x: 1900, y: 820,  w: 240, h: 140 },
+  { x: 260,  y: 820,  w: 240, h: 140 }
+];
+
+const player = {
+  id: 'player_' + Math.random().toString(36).substr(2, 9),
+  name: "Angler_01",
+  avatar: AVATARS[0],
+  x: 1150,
+  y: 850,
+  speed: 4.5,
+  money: 0,
+  ownedRods: [0],
+  equippedRod: 0,
+  inventory: [],
+  state: 'idle',
+  bobber: null,
+  facing: 1
+};
+
+// Fishing Minigame State: Player moves Green Bar onto moving Red Diamond
+let minigame = {
+  active: false,
+  barPos: 0.35,       // Left edge of player's green bar (0 to 1 - barWidth)
+  barVel: 0,          // Velocity of player's green bar
+  barWidth: 0.24,     // Width determined by rod control stat
+  diamondPos: 0.5,    // Center position of red diamond (0.03 to 0.97)
+  diamondTarget: 0.5, // Where the diamond is currently darting toward
+  progress: 0.35,
+  targetFish: null
+};
+
+const keys = {};
+let isHoldingAction = false;
+
+window.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (e.code === 'KeyE') handleInteract();
+  if (e.code === 'Space') isHoldingAction = true;
+});
+window.addEventListener('keyup', e => {
+  keys[e.code] = false;
+  if (e.code === 'Space') isHoldingAction = false;
+});
+
+canvas.addEventListener('mousedown', e => {
+  if (document.getElementById('home-screen').style.display !== 'none') return;
+  isHoldingAction = true;
+
+  if (minigame.active) return;
+
+  const camX = player.x - width / 2;
+  const camY = player.y - height / 2;
+  const worldX = e.clientX + camX;
+  const worldY = e.clientY + camY;
+
+  if (player.state === 'waiting') {
+    cancelFishing();
+    return;
+  }
+
+  const dist = Math.hypot(worldX - player.x, worldY - player.y);
+  if (isWater(worldX, worldY) && dist < 340) {
+    castLine(worldX, worldY);
+  } else if (dist >= 340 && isWater(worldX, worldY)) {
+    showToast("Too far! Walk closer to the water or onto a dock.");
+  }
+});
+
+window.addEventListener('mouseup', () => {
+  isHoldingAction = false;
+});
+
+/* ==========================================
+   5. MULTIPLAYER (REAL TAB SYNC + AI PLAYERS)
+   ========================================== */
+const remotePlayers = new Map();
+const channel = new BroadcastChannel('fisch_island_sync');
+
+channel.onmessage = (event) => {
+  const data = event.data;
+  if (data.id !== player.id) {
+    remotePlayers.set(data.id, { ...data, lastSeen: Date.now(), isRealTab: true });
+  }
+};
+
+const BOT_NAMES = ["xX_FishGod_Xx", "NoobMaster99", "BuildermanFan", "ChillAngler", "MegalodonHunter"];
+BOT_NAMES.forEach((bName, idx) => {
+  const spotX = idx % 2 === 0 ? 1160 + (idx * 25) : 1960;
+  const spotY = idx % 2 === 0 ? 1580 : 860 + (idx * 20);
+  remotePlayers.set('bot_' + idx, {
+    id: 'bot_' + idx,
+    name: bName,
+    avatar: AVATARS[(idx * 3 + 1) % AVATARS.length],
+    x: spotX,
+    y: spotY,
+    state: 'waiting',
+    bobber: { x: spotX + (idx % 2 === 0 ? 0 : 90), y: spotY + (idx % 2 === 0 ? 80 : 0) },
+    equippedRod: (idx * 4 + 2) % 20,
+    lastSeen: Date.now(),
+    isBot: true
+  });
+});
+
+function updateMultiplayer() {
+  channel.postMessage({
+    id: player.id,
+    name: player.name,
+    avatar: player.avatar,
+    x: player.x,
+    y: player.y,
+    state: player.state,
+    bobber: player.bobber,
+    equippedRod: player.equippedRod
+  });
+
+  const now = Date.now();
+  remotePlayers.forEach((rp, id) => {
+    if (rp.isBot) {
+      if (Math.random() < 0.01) {
+        if (rp.state === 'waiting') {
+          rp.state = 'idle';
+          rp.bobber = null;
+        } else {
+          rp.state = 'waiting';
+          rp.bobber = { x: rp.x + (rp.x > 1500 ? 95 : 0), y: rp.y + (rp.y > 1200 ? 85 : 0) };
+        }
+      }
+    } else if (now - rp.lastSeen > 3000) {
+      remotePlayers.delete(id);
+    }
+  });
+  document.getElementById('online-count').innerText = `Players on Island: ${remotePlayers.size + 1}`;
+}
+
+/* ==========================================
+   6. CORE GAMEPLAY & FISHING MECHANICS
+   ========================================== */
+function startGame() {
+  const inputName = document.getElementById('username-input').value.trim();
+  if (inputName) player.name = inputName;
+  player.avatar = selectedAvatar;
+  document.getElementById('home-screen').style.display = 'none';
+  document.getElementById('hud').style.display = 'block';
+  updateHUD();
+}
+
+function openHome() {
+  cancelFishing();
+  closeModals();
+  document.getElementById('home-screen').style.display = 'flex';
+  document.getElementById('hud').style.display = 'none';
+}
+
+function isOnDock(x, y) {
+  return DOCKS.some(d => x >= d.x && x <= d.x + d.w && y >= d.y && y <= d.y + d.h);
+}
+
+function isWater(x, y) {
+  if (isOnDock(x, y)) return false;
+  return x < ISLAND.x || x > ISLAND.x + ISLAND.w || y < ISLAND.y || y > ISLAND.y + ISLAND.h;
+}
+
+let biteTimer = null;
+
+function castLine(wx, wy) {
+  player.state = 'waiting';
+  player.bobber = { x: wx, y: wy };
+  player.facing = wx >= player.x ? 1 : -1;
+  showToast("Line cast! Wait for a bite...");
+
+  const rod = RODS[player.equippedRod];
+  const waitTime = Math.max(1200, 3800 - rod.luck * 4);
+  clearTimeout(biteTimer);
+  biteTimer = setTimeout(() => {
+    if (player.state === 'waiting') startMinigame();
+  }, waitTime);
+}
+
+function cancelFishing() {
+  clearTimeout(biteTimer);
+  player.state = 'idle';
+  player.bobber = null;
+  minigame.active = false;
+  document.getElementById('fishing-bar-container').style.display = 'none';
+  document.getElementById('fishing-progress-wrap').style.display = 'none';
+  document.getElementById('minigame-label').style.display = 'none';
+}
+
+function startMinigame() {
+  player.state = 'minigame';
+  minigame.active = true;
+  const rod = RODS[player.equippedRod];
+
+  // Pick fish weighted by Rod Luck
+  const roll = Math.random() * 100 + (rod.luck * 0.18);
+  let chosen = FISH_TYPES[0];
+  if (roll > 135) chosen = FISH_TYPES[9];
+  else if (roll > 120) chosen = FISH_TYPES[8];
+  else if (roll > 105) chosen = FISH_TYPES[7];
+  else if (roll > 90)  chosen = FISH_TYPES[6];
+  else if (roll > 75)  chosen = FISH_TYPES[5];
+  else if (roll > 60)  chosen = FISH_TYPES[4];
+  else if (roll > 45)  chosen = FISH_TYPES[3];
+  else if (roll > 30)  chosen = FISH_TYPES[2];
+  else if (roll > 15)  chosen = FISH_TYPES[1];
+
+  minigame.targetFish = chosen;
+  minigame.barWidth = rod.control;
+  minigame.barPos = 0.5 - (minigame.barWidth / 2);
+  minigame.barVel = 0;
+  minigame.diamondPos = 0.5;
+  minigame.diamondTarget = 0.2 + Math.random() * 0.6;
+  minigame.progress = 0.35;
+
+  const bar = document.getElementById('fishing-bar-container');
+  const greenBar = document.getElementById('green-bar');
+  const label = document.getElementById('minigame-label');
+
+  bar.style.display = 'block';
+  document.getElementById('fishing-progress-wrap').style.display = 'block';
+  label.style.display = 'block';
+  label.style.color = chosen.color;
+  label.innerText = `Hooked a [${chosen.rarity}] Fish! Hold SPACE / CLICK to keep Green Bar on Red Diamond!`;
+
+  greenBar.style.width = (minigame.barWidth * 100) + '%';
+  greenBar.style.left = (minigame.barPos * 100) + '%';
+  document.getElementById('red-diamond').style.left = (minigame.diamondPos * 100) + '%';
+}
+
+function updateMinigame() {
+  if (!minigame.active) return;
+
+  const fish = minigame.targetFish;
+
+  // 1. Player controls the Green Bar (Hold Space/Click to push right, release to drift left)
+  const accel = 0.0014;
+  const friction = 0.90;
+  if (isHoldingAction) {
+    minigame.barVel += accel;
+  } else {
+    minigame.barVel -= accel;
+  }
+  minigame.barVel *= friction;
+  minigame.barPos += minigame.barVel;
+
+  // Clamp Green Bar within track walls (with slight bounce)
+  const maxBarPos = 1 - minigame.barWidth;
+  if (minigame.barPos < 0) {
+    minigame.barPos = 0;
+    minigame.barVel *= -0.3;
+  } else if (minigame.barPos > maxBarPos) {
+    minigame.barPos = maxBarPos;
+    minigame.barVel *= -0.3;
+  }
+
+  // 2. Red Diamond moves faster & more randomly based on Fish Rarity!
+  if (Math.random() < fish.erratic || Math.abs(minigame.diamondTarget - minigame.diamondPos) < 0.02) {
+    minigame.diamondTarget = 0.05 + Math.random() * 0.90;
+  }
+
+  const diff = minigame.diamondTarget - minigame.diamondPos;
+  const step = Math.sign(diff) * Math.min(Math.abs(diff), fish.speed);
+  minigame.diamondPos += step;
+  minigame.diamondPos = Math.max(0.03, Math.min(0.97, minigame.diamondPos));
+
+  // Update Visuals
+  const greenBar = document.getElementById('green-bar');
+  greenBar.style.left = (minigame.barPos * 100) + '%';
+  document.getElementById('red-diamond').style.left = (minigame.diamondPos * 100) + '%';
+
+  // 3. Check if Red Diamond is inside the Player's Green Bar
+  const inGreen = minigame.diamondPos >= minigame.barPos &&
+                  minigame.diamondPos <= (minigame.barPos + minigame.barWidth);
+
+  if (inGreen) {
+    minigame.progress += 0.0075;
+    greenBar.style.background = 'rgba(74, 222, 128, 0.95)';
+    greenBar.style.borderColor = '#ffffff';
+  } else {
+    minigame.progress -= 0.0052;
+    greenBar.style.background = 'rgba(34, 197, 94, 0.45)';
+    greenBar.style.borderColor = '#86efac';
+  }
+
+  document.getElementById('fishing-progress').style.width = Math.max(0, Math.min(100, minigame.progress * 100)) + '%';
+
+  if (minigame.progress >= 1) {
+    const weight = +(fish.minKg + Math.random() * (fish.maxKg - fish.minKg)).toFixed(1);
+    const value = Math.round(fish.basePrice * (1 + (weight / fish.maxKg) * 0.5));
+    player.inventory.push({
+      uid: Date.now() + Math.random(),
+      name: fish.name,
+      rarity: fish.rarity,
+      color: fish.color,
+      weight: weight,
+      value: value
+    });
+    showToast(`🎣 Caught ${fish.name} (${weight} kg) [${fish.rarity}]!`);
+    updateHUD();
+    cancelFishing();
+  } else if (minigame.progress <= 0) {
+    showToast(`💨 The ${fish.rarity} ${fish.name} escaped!`);
+    cancelFishing();
+  }
+}
+
+/* ==========================================
+   7. NPC INTERACTIONS, SHOPS & INVENTORY
+   ========================================== */
+function getNearbyNPC() {
+  for (let npc of NPCS) {
+    if (Math.hypot(player.x - npc.x, player.y - npc.y) < 95) return npc;
+  }
+  return null;
+}
+
+function handleInteract() {
+  const npc = getNearbyNPC();
+  if (!npc) return;
+  if (npc.id === 'rod_shop') openModal('rod-shop-modal');
+  if (npc.id === 'merchant') openModal('merchant-modal');
+}
+
+function openModal(id) {
+  closeModals();
+  if (id === 'inventory-modal') renderInventory();
+  if (id === 'rod-shop-modal') renderRodShop();
+  if (id === 'merchant-modal') renderMerchant();
+  document.getElementById(id).style.display = 'flex';
+}
+
+function closeModals() {
+  document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
+}
+
+function renderInventory() {
+  const list = document.getElementById('inventory-list');
+  if (player.inventory.length === 0) {
+    list.innerHTML = '<div style="color:#94a3b8;text-align:center;">Your backpack is empty. Click on the ocean water to cast your line!</div>';
+    return;
+  }
+  list.innerHTML = player.inventory.map(item => `
+    <div class="list-item">
+      <div>
+        <strong style="color:${item.color};">[${item.rarity}] ${item.name}</strong>
+        <div style="font-size:12px; color:#cbd5e1;">Weight: ${item.weight} kg</div>
+      </div>
+      <div style="color:#4ade80; font-weight:bold;">Est. ${item.value} C$</div>
+    </div>
+  `).join('');
+}
+
+function renderRodShop() {
+  const list = document.getElementById('rod-shop-list');
+  list.innerHTML = RODS.map(rod => {
+    const owned = player.ownedRods.includes(rod.id);
+    const equipped = player.equippedRod === rod.id;
+    let btnHtml = '';
+    if (equipped) {
+      btnHtml = `<button class="item-btn btn-equipped">EQUIPPED</button>`;
+    } else if (owned) {
+      btnHtml = `<button class="item-btn btn-equip" onclick="equipRod(${rod.id})">EQUIP</button>`;
+    } else {
+      btnHtml = `<button class="item-btn btn-buy" onclick="buyRod(${rod.id})">BUY (${rod.price.toLocaleString()} C$)</button>`;
+    }
+    return `
+      <div class="list-item">
+        <div>
+          <strong style="color:${rod.color}; font-size:16px;">${rod.id + 1}. ${rod.name}</strong>
+          <div style="font-size:12px; color:#cbd5e1;">Luck: +${rod.luck}% &nbsp;|&nbsp; Green Bar Size: ${Math.round(rod.control * 100)}%</div>
+        </div>
+        ${btnHtml}
+      </div>
+    `;
+  }).join('');
+}
+
+function buyRod(id) {
+  const rod = RODS[id];
+  if (player.money >= rod.price) {
+    player.money -= rod.price;
+    player.ownedRods.push(id);
+    player.equippedRod = id;
+    showToast(`Purchased & Equipped ${rod.name}!`);
+    updateHUD();
+    renderRodShop();
+  } else {
+    showToast(`Not enough C$! Need ${rod.price.toLocaleString()} C$.`);
+  }
+}
+
+function equipRod(id) {
+  player.equippedRod = id;
+  showToast(`Equipped ${RODS[id].name}`);
+  updateHUD();
+  renderRodShop();
+}
+
+function renderMerchant() {
+  const list = document.getElementById('merchant-list');
+  if (player.inventory.length === 0) {
+    list.innerHTML = '<div style="color:#94a3b8;text-align:center;">You have no fish to sell!</div>';
+    return;
+  }
+  list.innerHTML = player.inventory.map((item, idx) => `
+    <div class="list-item">
+      <div>
+        <strong style="color:${item.color};">[${item.rarity}] ${item.name}</strong> (${item.weight} kg)
+      </div>
+      <button class="item-btn btn-sell" onclick="sellOneFish(${idx})">Sell +${item.value} C$</button>
+    </div>
+  `).join('');
+}
+
+function sellOneFish(index) {
+  const fish = player.inventory.splice(index, 1)[0];
+  player.money += fish.value;
+  showToast(`Sold ${fish.name} for +${fish.value} C$!`);
+  updateHUD();
+  renderMerchant();
+}
+
+function sellAllFish() {
+  if (player.inventory.length === 0) return;
+  const total = player.inventory.reduce((sum, f) => sum + f.value, 0);
+  const count = player.inventory.length;
+  player.money += total;
+  player.inventory = [];
+  showToast(`Sold ${count} fish for +${total.toLocaleString()} C$!`);
+  updateHUD();
+  renderMerchant();
+}
+
+function updateHUD() {
+  document.getElementById('money-display').innerText = `${player.money.toLocaleString()} C$`;
+  document.getElementById('rod-display').innerText = `Equipped: ${RODS[player.equippedRod].name}`;
+  document.getElementById('inv-count').innerText = player.inventory.length;
+}
+
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.innerText = msg;
+  t.style.display = 'block';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.style.display = 'none'; }, 2800);
+}
+
+/* ==========================================
+   8. MOVEMENT & RENDERING LOOP
+   ========================================== */
+function updatePlayer() {
+  if (document.getElementById('home-screen').style.display !== 'none') return;
+
+  let dx = 0, dy = 0;
+  if (keys['KeyW'] || keys['ArrowUp']) dy -= 1;
+  if (keys['KeyS'] || keys['ArrowDown']) dy += 1;
+  if (keys['KeyA'] || keys['ArrowLeft']) dx -= 1;
+  if (keys['KeyD'] || keys['ArrowRight']) dx += 1;
+
+  if (dx !== 0 || dy !== 0) {
+    if (player.state === 'waiting' || player.state === 'minigame') cancelFishing();
+    const len = Math.hypot(dx, dy);
+    const nextX = player.x + (dx / len) * player.speed;
+    const nextY = player.y + (dy / len) * player.speed;
+    if (dx !== 0) player.facing = dx > 0 ? 1 : -1;
+
+    if (!isWater(nextX, nextY)) {
+      player.x = nextX;
+      player.y = nextY;
+    }
+  }
+
+  const nearNPC = getNearbyNPC();
+  const prompt = document.getElementById('interact-prompt');
+  if (nearNPC) {
+    prompt.style.display = 'block';
+    prompt.innerText = `Press [E] to open ${nearNPC.name}`;
+  } else {
+    prompt.style.display = 'none';
+  }
+}
+
+function drawRobloxCharacter(p, isLocal) {
+  const av = p.avatar || AVATARS[0];
+  const x = p.x;
+  const y = p.y;
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 24, 16, 7, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Legs
+  ctx.fillStyle = av.legs;
+  ctx.fillRect(x - 11, y + 4, 10, 18);
+  ctx.fillRect(x + 1, y + 4, 10, 18);
+
+  // Torso
+  ctx.fillStyle = av.torso;
+  ctx.fillRect(x - 13, y - 16, 26, 20);
+
+  // Arms
+  ctx.fillStyle = av.head === 'transparent' ? av.torso : av.head;
+  ctx.fillRect(x - 19, y - 16, 6, 18);
+  ctx.fillRect(x + 13, y - 16, 6, 18);
+
+  // Head
+  if (av.head !== 'transparent') {
+    ctx.fillStyle = av.head;
+    ctx.fillRect(x - 9, y - 32, 18, 15);
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(x - 5, y - 28, 2, 3);
+    ctx.fillRect(x + 3, y - 28, 2, 3);
+    ctx.fillRect(x - 4, y - 22, 8, 2);
+  }
+
+  // Hat / Accessory
+  if (av.hat === 'bacon') {
+    ctx.fillStyle = '#78350f';
+    ctx.fillRect(x - 10, y - 35, 20, 6);
+  } else if (av.hat === 'hardhat') {
+    ctx.fillStyle = '#f97316';
+    ctx.fillRect(x - 11, y - 36, 22, 6);
+  } else if (av.hat === 'crown') {
+    ctx.fillStyle = '#facc15';
+    ctx.fillRect(x - 9, y - 38, 18, 6);
+  } else if (av.hat === 'dominus') {
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(x - 11, y - 35, 22, 18);
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(x - 6, y - 29, 12, 8);
+  }
+
+  // Fishing Rod & Line
+  const rod = RODS[p.equippedRod || 0];
+  ctx.strokeStyle = rod.color;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(x + 12, y - 8);
+  const tipX = x + 36;
+  const tipY = y - 28;
+  ctx.lineTo(tipX, tipY);
+  ctx.stroke();
+
+  if (p.bobber) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(tipX, tipY);
+    ctx.lineTo(p.bobber.x, p.bobber.y);
+    ctx.stroke();
+
+    const bobOffset = Math.sin(Date.now() / 200) * 3;
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.arc(p.bobber.x, p.bobber.y + bobOffset, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(p.bobber.x - 5, p.bobber.y + bobOffset, 10, 3);
+  }
+
+  // Name Tag
+  ctx.font = 'bold 13px Segoe UI';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = isLocal ? '#38bdf8' : '#f8fafc';
+  ctx.fillText(p.name, x, y - 44);
+}
+
+function drawWorld() {
+  ctx.clearRect(0, 0, width, height);
+
+  const camX = player.x - width / 2;
+  const camY = player.y - height / 2;
+
+  ctx.save();
+  ctx.translate(-camX, -camY);
+
+  // 1. Deep Ocean Background
+  ctx.fillStyle = '#0369a1';
+  ctx.fillRect(0, 0, WORLD.width, WORLD.height);
+
+  // Ocean Waves
+  ctx.strokeStyle = 'rgba(186, 230, 253, 0.25)';
+  ctx.lineWidth = 2;
+  const waveShift = (Date.now() / 40) % 80;
+  for (let wx = 100; wx < WORLD.width; wx += 180) {
+    for (let wy = 100; wy < WORLD.height; wy += 160) {
+      if (isWater(wx, wy)) {
+        ctx.beginPath();
+        ctx.moveTo(wx + waveShift, wy);
+        ctx.lineTo(wx + 35 + waveShift, wy);
+        ctx.stroke();
+      }
+    }
+  }
+
+  // 2. Island Sand Beach
+  ctx.fillStyle = '#fde68a';
+  ctx.beginPath();
+  ctx.roundRect(ISLAND.x, ISLAND.y, ISLAND.w, ISLAND.h, 80);
+  ctx.fill();
+
+  // 3. Island Lush Grass Center
+  ctx.fillStyle = '#22c55e';
+  ctx.beginPath();
+  ctx.roundRect(ISLAND.x + 85, ISLAND.y + 85, ISLAND.w - 170, ISLAND.h - 170, 60);
+  ctx.fill();
+
+  // Stone Plaza & Paths
+  ctx.fillStyle = '#cbd5e1';
+  ctx.fillRect(850, 640, 620, 140);
+  ctx.fillRect(1165, 780, 70, 620);
+
+  // 4. Wooden Docks
+  DOCKS.forEach(d => {
+    ctx.fillStyle = '#78350f';
+    ctx.fillRect(d.x, d.y, d.w, d.h);
+    ctx.strokeStyle = '#451a03';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(d.x, d.y, d.w, d.h);
+  });
+
+  // 5. Shop Stalls & NPCs
+  NPCS.forEach(npc => {
+    ctx.fillStyle = npc.color;
+    ctx.fillRect(npc.x - 55, npc.y - 65, 110, 35);
+    ctx.fillStyle = '#451a03';
+    ctx.fillRect(npc.x - 50, npc.y - 30, 8, 40);
+    ctx.fillRect(npc.x + 42, npc.y - 30, 8, 40);
+
+    drawRobloxCharacter({
+      x: npc.x, y: npc.y, name: npc.name,
+      avatar: { head: '#fde047', torso: npc.shirt, legs: '#1e293b', hat: 'cap' }
+    }, false);
+  });
+
+  // 6. Remote Players
+  remotePlayers.forEach(rp => drawRobloxCharacter(rp, false));
+
+  // 7. Local Player
+  drawRobloxCharacter(player, true);
+
+  ctx.restore();
+}
+
+function loop() {
+  updatePlayer();
+  updateMinigame();
+  updateMultiplayer();
+  drawWorld();
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>
